@@ -141,7 +141,7 @@ final class CameraBubble: NSObject, NSWindowDelegate {
 }
 
 /// Picks the camera's sharpest format (its largest up to 1920x1080 that can do 30 fps; 1280x720 on a
-/// MacBook's FaceTime HD camera) and holds it at a steady 30 fps, so it doesn't slow down in dim light.
+/// 720p FaceTime HD camera) and holds it at a steady 30 fps, so it doesn't slow down in dim light.
 /// Call after adding the camera to a session, inside begin/commitConfiguration.
 enum CameraFormat {
     static func useBest(_ camera: AVCaptureDevice) {

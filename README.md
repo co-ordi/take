@@ -36,7 +36,7 @@ It needs macOS 15 or later. Prefer doing it yourself? See **Building** below.
 
 ## Camera only
 
-The MacBook's FaceTime HD camera tops out at 1280x720, so Take uses that format (for the bubble too), scales it up to 1080p with a high-quality filter and adds a light sharpen, so it looks clean rather than soft.
+Take picks your camera's best format (for the bubble too). If it tops out at 720p, as some MacBook cameras do, Take scales it up to 1080p with a high-quality filter and adds a light sharpen, so it looks clean rather than soft.
 
 Pick **Camera only** to record just yourself: the camera, with your look and any macOS video effects, plus the microphone. No screen and no computer sound. Choose **16:9** (1920x1080) or **9:16** (1080x1920, for Shorts and Reels; it's cropped from the camera's landscape picture, so a touch softer). A preview window shows exactly what will be recorded: drag it where you like (it remembers), and its × turns the camera off. Mirror applies to the recording too, so it matches the preview. Pause, the timer, saving to `~/Movies/Take` and Add to Photos all work as usual.
 
