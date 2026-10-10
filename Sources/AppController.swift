@@ -5,6 +5,8 @@ import SwiftUI
 
 enum Prefs {
     static let microphone = "microphone"
+    static let voiceIsolation = "voiceIsolation"
+    static let computerSound = "computerSound"
     static let cameraBubble = "cameraBubble"
     static let notes = "notes"
     static let cleanScreen = "cleanScreen"
@@ -61,6 +63,7 @@ final class AppController: NSObject, NSApplicationDelegate {
     private var recordedBefore: TimeInterval = 0  // recorded time up to the latest pause
     private var stretchStart: Date?               // when the current unpaused stretch began
     private var workingFile: URL?
+    private var cleanVoice = false                // this take's microphone goes through voice isolation on save
     private var clock: Timer?
     private var flashReset: DispatchWorkItem?
 
@@ -73,7 +76,7 @@ final class AppController: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         defaults.register(defaults: [
-            Prefs.microphone: true, Prefs.cameraBubble: false, Prefs.notes: false,
+            Prefs.microphone: true, Prefs.voiceIsolation: true, Prefs.computerSound: false, Prefs.cameraBubble: false, Prefs.notes: false,
             Prefs.cleanScreen: true, Prefs.format: RecordingFormat.fullScreen.rawValue, Prefs.frameRate: 30, Prefs.addToPhotos: false,
         ])
 
@@ -266,6 +269,7 @@ final class AppController: NSObject, NSApplicationDelegate {
                 try cameraRecorder.start(microphone: microphone, writingTo: file)
             } else {
                 try await recorder.start(Recorder.Options(microphone: microphone,
+                                                          computerSound: defaults.bool(forKey: Prefs.computerSound),
                                                           cleanScreen: defaults.bool(forKey: Prefs.cleanScreen),
                                                           region: region,
                                                           keepVisible: bubble.window,
@@ -280,6 +284,7 @@ final class AppController: NSObject, NSApplicationDelegate {
         }
         workingFile = file
         recordingCamera = cameraOnly
+        cleanVoice = microphone && defaults.bool(forKey: Prefs.voiceIsolation)
         awake = ProcessInfo.processInfo.beginActivity(options: [.userInitiated, .idleSystemSleepDisabled, .latencyCritical],
                                                       reason: "Recording")
         startedAt = Date()
@@ -327,7 +332,7 @@ final class AppController: NSObject, NSApplicationDelegate {
         workingFile = nil
 
         do {
-            try await Saver.save(file, recordedAt: startedAt)
+            try await Saver.save(file, recordedAt: startedAt, cleanVoice: cleanVoice)
             phase = .idle
             flash("Saved ✓", seconds: 3)
             Recordings.shared.refresh()

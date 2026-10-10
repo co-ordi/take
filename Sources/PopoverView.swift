@@ -7,6 +7,8 @@ struct PopoverView: View {
     let actions: PopoverActions
 
     @AppStorage(Prefs.microphone) private var microphone = true
+    @AppStorage(Prefs.voiceIsolation) private var voiceIsolation = true
+    @AppStorage(Prefs.computerSound) private var computerSound = false
     @AppStorage(Prefs.cameraBubble) private var cameraBubble = false
     @AppStorage(Prefs.notes) private var notes = false
     @AppStorage(Prefs.cleanScreen) private var cleanScreen = true
@@ -111,8 +113,14 @@ struct PopoverView: View {
                 if microphone, permissions.status(.microphone) == .allowed { LevelMeter(level: meter.level) }
             }
             .onChange(of: microphone) { _, on in actions.microphone(on) }
+            if microphone {
+                row("Voice isolation", isOn: $voiceIsolation)
+                    .help("Cleans room noise and hum out of your voice when the recording is saved. The computer's sound is left as it is.")
+            }
 
             if !cameraOnly {
+                row("Computer sound", isOn: $computerSound)
+                    .help("Records what your Mac plays too, for showing a video or an app that makes sound. Off keeps out pings and music.")
                 row("Camera bubble", isOn: $cameraBubble)
                     .onChange(of: cameraBubble) { _, on in actions.cameraBubble(on) }
             }

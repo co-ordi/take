@@ -8,6 +8,7 @@ import ScreenCaptureKit
 final class Recorder: NSObject {
     struct Options {
         var microphone: Bool
+        var computerSound = false      // other apps' sound; off unless you're showing something that plays
         var cleanScreen: Bool          // leave notifications and desktop icons out of the video
         var region: CGRect?            // a vertical slice, in screen coordinates; nil records the whole display
         var keepVisible: NSWindow?     // the camera bubble: the one Take window that should be recorded
@@ -55,7 +56,7 @@ final class Recorder: NSObject {
         config.pixelFormat = kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange
         config.colorMatrix = CGDisplayStream.yCbCrMatrix_ITU_R_709_2
         config.colorSpaceName = CGColorSpace.sRGB
-        config.capturesAudio = true                                  // the computer's own sound, always on
+        config.capturesAudio = options.computerSound                 // the computer's own sound, only when switched on
         config.excludesCurrentProcessAudio = true
         config.sampleRate = 48_000
         config.channelCount = 2
@@ -63,13 +64,13 @@ final class Recorder: NSObject {
         if options.microphone { config.microphoneCaptureDeviceID = Microphone.preferred()?.uniqueID }
 
         let writer = try TakeWriter(url: url, width: width, height: height, frameRate: options.frameRate,
-                                    computerAudio: true, microphone: options.microphone)
+                                    computerAudio: options.computerSound, microphone: options.microphone)
         writer.onFailure = { [weak self] in Task { @MainActor in self?.onUnexpectedStop?() } }
         output.writer = writer
 
         let stream = SCStream(filter: filter, configuration: config, delegate: self)
         try stream.addStreamOutput(output, type: .screen, sampleHandlerQueue: samples)
-        try stream.addStreamOutput(output, type: .audio, sampleHandlerQueue: samples)
+        if options.computerSound { try stream.addStreamOutput(output, type: .audio, sampleHandlerQueue: samples) }
         if options.microphone { try stream.addStreamOutput(output, type: .microphone, sampleHandlerQueue: samples) }
         try await stream.startCapture()
 

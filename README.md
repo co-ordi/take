@@ -19,8 +19,9 @@ It needs macOS 15 or later. Prefer doing it yourself? See **Building** below.
 - The video saves to `~/Movies/Take` as `Take 2026-10-05 at 14.03.22.mov`. A notification says "Saved", with an **Add to Photos** button; clicking the notification shows the file in Finder.
 - **Recordings** in the menu (folded like the other sections) lists the latest five with their length. Each has **Add to Photos**, which turns into **In Photos ✓** once it's there. Click a recording's date to show it in Finder; **Show all** opens the folder. Switch on **Add new recordings to Photos** (off by default) to have every new recording added after it saves. Take never asks for Photos access unless you add a recording or switch that on; if you refuse, the switch goes back off.
 - **30 fps / 60 fps** for Full screen and Vertical (remembered, 30 by default). 60 is smoother for scrolling and motion, with bigger files.
-- Menu switches, all remembered: **Full screen / Vertical 9:16 / Camera only**, **Microphone** (with a live level meter, on by default), **Camera bubble**, **Notes**. Under **More**: **Clean screen** (on by default) and **Open at login**. Only one of the folded sections opens at a time, and on a small screen the menu scrolls rather than growing past the screen.
-- The computer's own sound is always recorded, mixed with your voice into one audio track.
+- Menu switches, all remembered: **Full screen / Vertical 9:16 / Camera only**, **Microphone** (with a live level meter, on by default), **Voice isolation** (on by default), **Computer sound** (off by default), **Camera bubble**, **Notes**. Under **More**: **Clean screen** (on by default) and **Open at login**. Only one of the folded sections opens at a time, and on a small screen the menu scrolls rather than growing past the screen.
+- **Voice isolation** runs your microphone through Apple's own voice isolation (the effect built into macOS) when the recording is saved: room noise and hum drop away, your voice stays as it was and in sync. It only touches the microphone, and adds a second or two to saving.
+- **Computer sound** records what your Mac plays as well, for showing a video or an app that makes sound. It's off by default, which keeps notification pings and music out; when it's on, it's mixed with your voice into one audio track.
 - Take's menu, timer, notes and 9:16 frame never appear in the video. The camera bubble does.
 
 ## Camera bubble
@@ -107,7 +108,8 @@ If permissions ever get muddled (say after switching between signed and ad hoc b
 | `Sources/MenuPanel.swift` | The menu's window: pinned under the menu-bar icon, grows downwards, closes on a click outside or Esc |
 | `Sources/Recorder.swift` | ScreenCaptureKit: what's in the picture (clean screen), full screen or a 9:16 slice, sound and microphone |
 | `Sources/TakeWriter.swift` | Writes the .mov as it records (H.264 High, 30 fps, about 0.15 bits per pixel: roughly 18 Mbps for a 2560x1600 screen, 10 Mbps for 1080p, keyframe every 2 s) and cuts out paused stretches |
-| `Sources/Saver.swift` | Folds the two audio tracks into one, saves to `~/Movies/Take`, Add to Photos, the notification and its button |
+| `Sources/Saver.swift` | Folds the audio tracks into one, saves to `~/Movies/Take`, Add to Photos, the notification and its button |
+| `Sources/VoiceIsolation.swift` | Apple's voice isolation over the microphone track as the recording is saved, with its delay taken out |
 | `Sources/Recordings.swift` | The latest recordings for the menu, and whether each is in Photos |
 | `Sources/CameraBubble.swift` | The floating camera window: camera frames through Core Image into a Metal view |
 | `Sources/CameraRecorder.swift` | Camera-only recording and its preview window |
@@ -121,6 +123,6 @@ If permissions ever get muddled (say after switching between signed and ad hoc b
 
 Notes:
 
-- Audio is 48 kHz AAC at 256 kbps. The computer's sound and the microphone are recorded as two tracks, then mixed into one before saving, because some players and editors only use the first track. The video isn't re-encoded at that step.
+- Audio is 48 kHz AAC at 256 kbps. With Computer sound on, it and the microphone are recorded as two tracks, then mixed into one before saving, because some players and editors only use the first track. The video isn't re-encoded at that step.
 - The microphone is the Mac's default input. If that's a virtual device such as BlackHole, Take uses the built-in microphone instead. It never changes your sound settings.
 - The camera bubble uses the Mac's own camera, so a nearby iPhone (Continuity Camera) doesn't take over.

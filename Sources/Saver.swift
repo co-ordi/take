@@ -18,11 +18,11 @@ enum Saver {
 
     /// Finishes the file in ~/Movies/Take and says so. Returns where it is.
     @discardableResult
-    static func save(_ working: URL, recordedAt date: Date) async throws -> URL {
+    static func save(_ working: URL, recordedAt date: Date, cleanVoice: Bool = false) async throws -> URL {
         guard FileManager.default.fileExists(atPath: working.path) else { throw SaveError.nothingRecorded }
         let final = finalURL(for: date)
         do {
-            try await AudioMixdown.run(working, to: final)
+            try await AudioMixdown.run(working, to: final, cleanVoice: cleanVoice)
             try? FileManager.default.removeItem(at: working)
         } catch {
             // Mixdown is a nicety. If it can't run, keep the original file as it is.
@@ -155,18 +155,46 @@ enum SaveError: LocalizedError {
 
 /// ScreenCaptureKit writes the computer's sound and the microphone as two separate audio tracks.
 /// Some players and editors only play or keep the first one, so this copies the video untouched
-/// and folds every audio track into a single one that works everywhere.
+/// and folds every audio track into a single one that works everywhere. With cleanVoice, the microphone
+/// (always the last audio track TakeWriter adds) goes through voice isolation first.
 enum AudioMixdown {
-    static func run(_ source: URL, to destination: URL) async throws {
+    static func run(_ source: URL, to destination: URL, cleanVoice: Bool = false) async throws {
         let asset = AVURLAsset(url: source)
-        let audioTracks = try await asset.loadTracks(withMediaType: .audio)
+        var audioTracks = try await asset.loadTracks(withMediaType: .audio)
         guard let video = try await asset.loadTracks(withMediaType: .video).first else { throw SaveError.nothingRecorded }
-        guard audioTracks.count > 1 else {
+        var audioAsset: AVAsset = asset
+        var voice: URL?
+        defer { if let voice { try? FileManager.default.removeItem(at: voice) } }
+        if cleanVoice, let microphone = audioTracks.last {
+            do {
+                let cleaned = try await VoiceIsolation.clean(microphone, in: asset)
+                voice = cleaned
+                let mix = AVMutableComposition()
+                for track in audioTracks.dropLast() {
+                    let range = try await track.load(.timeRange)
+                    try mix.addMutableTrack(withMediaType: .audio, preferredTrackID: kCMPersistentTrackID_Invalid)?
+                        .insertTimeRange(range, of: track, at: range.start)
+                }
+                let cleanedAsset = AVURLAsset(url: cleaned)
+                guard let cleanedTrack = try await cleanedAsset.loadTracks(withMediaType: .audio).first else {
+                    throw SaveError.nothingRecorded
+                }
+                let length = min(try await cleanedAsset.load(.duration), try await asset.load(.duration))
+                try mix.addMutableTrack(withMediaType: .audio, preferredTrackID: kCMPersistentTrackID_Invalid)?
+                    .insertTimeRange(CMTimeRange(start: .zero, duration: length), of: cleanedTrack, at: .zero)
+                audioAsset = mix
+                audioTracks = try await mix.loadTracks(withMediaType: .audio)
+            } catch {
+                // Voice isolation is a nicety too: if it can't run, the take keeps its own microphone.
+            }
+        }
+        guard audioTracks.count > 1 || audioAsset !== asset else {
             try FileManager.default.moveItem(at: source, to: destination)
             return
         }
 
         let reader = try AVAssetReader(asset: asset)
+        let audioReader = audioAsset === asset ? reader : try AVAssetReader(asset: audioAsset)
         let videoOut = AVAssetReaderTrackOutput(track: video, outputSettings: nil)
         let audioOut = AVAssetReaderAudioMixOutput(audioTracks: audioTracks, audioSettings: [
             AVFormatIDKey: kAudioFormatLinearPCM,
@@ -178,7 +206,7 @@ enum AudioMixdown {
             AVLinearPCMIsNonInterleaved: false,
         ])
         reader.add(videoOut)
-        reader.add(audioOut)
+        audioReader.add(audioOut)
 
         let writer = try AVAssetWriter(outputURL: destination, fileType: .mov)
         let videoIn = AVAssetWriterInput(mediaType: .video, outputSettings: nil,
@@ -193,8 +221,8 @@ enum AudioMixdown {
         writer.add(videoIn)
         writer.add(audioIn)
 
-        guard reader.startReading(), writer.startWriting() else {
-            throw reader.error ?? writer.error ?? SaveError.nothingRecorded
+        guard reader.startReading(), audioReader === reader || audioReader.startReading(), writer.startWriting() else {
+            throw reader.error ?? audioReader.error ?? writer.error ?? SaveError.nothingRecorded
         }
         writer.startSession(atSourceTime: .zero)
 
@@ -202,9 +230,9 @@ enum AudioMixdown {
         async let audioDone: Void = copy(audioOut, into: audioIn, on: DispatchQueue(label: "com.coordi.take.mix.audio"))
         _ = await (videoDone, audioDone)
 
-        if reader.status == .failed || writer.status == .failed {
+        if reader.status == .failed || audioReader.status == .failed || writer.status == .failed {
             writer.cancelWriting()
-            throw reader.error ?? writer.error ?? SaveError.nothingRecorded
+            throw reader.error ?? audioReader.error ?? writer.error ?? SaveError.nothingRecorded
         }
         await writer.finishWriting()
         if writer.status != .completed { throw writer.error ?? SaveError.nothingRecorded }
